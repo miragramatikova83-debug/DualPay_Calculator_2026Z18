@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="bg">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#6D28D9" />
+  <title>DualPay Calculator 2029Z18</title>
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;700&family=Montserrat:wght@300;400;600&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Tailwind config for custom fonts and colors
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            'title': ['Comfortaa', 'sans-serif'],
+            'ui': ['Montserrat', 'sans-serif']
+          },
+          colors: {
+            'main-bg': '#f3e8ff',        // light purple main background
+            'glass': 'rgba(255,255,255,0.55)',
+            'accent': '#6D28D9',         // deep purple accents
+            'input-bg': '#efe6ff'        // payment amount field background
+          },
+          boxShadow: {
+            'deep': '0 20px 40px rgba(30, 20, 60, 0.35)'
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    :root{
+      --rate: 1.95583;
+      --accent: #6D28D9;
+      --main-bg: #f3e8ff;
+      --input-bg: #efe6ff;
+    }
+
+    body {
+      font-family: 'Montserrat', sans-serif;
+      background: radial-gradient(1200px 600px at 10% 10%, rgba(109,40,217,0.06), transparent 8%),
+                  radial-gradient(900px 400px at 90% 90%, rgba(109,40,217,0.04), transparent 10%),
+                  linear-gradient(180deg,#f7f1ff,#efe8ff);
+    }
+
+    /* App-like frame */
+    .app-frame{
+      max-width:740px;
+      margin:18px auto;
+      border-radius:18px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.06));
+      backdrop-filter: blur(8px) saturate(120%);
+      -webkit-backdrop-filter: blur(8px) saturate(120%);
+      box-shadow: 0 30px 60px rgba(25, 10, 60, 0.28);
+      border: 1px solid rgba(255,255,255,0.28);
+    }
+
+    /* Checkerboard dynamic background container */
+    .bg-grid{
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .bg-grid .cell{
+      position: absolute;
+      font-size: clamp(26px, 5.6vw, 56px);
+      color: rgba(20,10,40,0.04); /* barely noticeable */
+      will-change: transform, opacity;
+      transform-origin: center;
+      user-select: none;
+    }
+
+    /* Smooth show/hide and glass effect for content */
+    .content{
+      position: relative;
+      z-index: 5;
+    }
+
+    /* Input groups */
+    .input-group { display:flex; align-items:center; gap:0.5rem; }
+    .prefix {
+      background: rgba(255,255,255,0.12);
+      border-radius: 10px;
+      padding: 0.7rem 0.9rem;
+      min-width: 56px;
+      text-align:center;
+      color: white;
+      font-weight: 700;
+      font-family: 'Comfortaa', sans-serif;
+      box-shadow: inset 0 -1px 0 rgba(0,0,0,0.04);
+      background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+    }
+    .prefix.bgn { background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); color: #fde68a; }
+    .prefix.eur { background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); color: #bbf7d0; }
+
+    .big-input{
+      padding: .85rem 1rem;
+      font-size: 1.05rem;
+      border-radius: 12px;
+      width:100%;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(0,0,0,0.04);
+    }
+
+    .error-box{
+      background: linear-gradient(90deg, rgba(255,100,100,0.12), rgba(255,80,80,0.08));
+      border-left: 4px solid rgba(220,20,60,0.9);
+    }
+
+    .fade-slide{
+      transition: opacity .28s cubic-bezier(.2,.9,.28,1), transform .28s cubic-bezier(.2,.9,.28,1);
+      transform-origin: center;
+    }
+
+    @media (max-width:640px){
+      .app-frame{ margin: 10px; border-radius: 16px; padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Dynamic checkerboard of alternating symbols -->
+  <div id="bgSymbols" class="bg-grid" aria-hidden="true"></div>
+
+  <main class="p-4 content">
+    <div class="app-frame p-5 relative overflow-hidden">
+      <!-- Header -->
+      <header class="flex items-center gap-4">
+        <canvas id="tileLogo" width="72" height="72" class="rounded-xl shadow-lg" style="width:56px;height:56px;"></canvas>
+        <div>
+          <h1 class="text-2xl font-title text-[#2b0b4a]">DualPay Calculator 2029Z18</h1>
+          <p class="text-sm text-[#432a6a]">Бърза смяна и пресмятане на ресто — BGN ↔ EUR</p>
+        </div>
+      </header>
+
+      <!-- Body: vertical layout (amount -> paid inputs) like requested -->
+      <section class="mt-5 content">
+        <div class="rounded-lg p-4" style="background:linear-gradient(180deg,var(--input-bg),rgba(255,255,255,0.6));">
+          <!-- Amount -->
+          <label class="text-sm font-semibold text-[#3b2b5a]">Сума за плащане</label>
+          <div class="mt-3 grid gap-3">
+            <div class="input-group">
+              <div id="amountPrefix" class="prefix bgn">лв</div>
+              <input id="amount" type="number" min="0" step="0.01" class="big-input" placeholder="0.00" aria-label="Сума за плащане">
+              <select id="amountCurrency" class="rounded-lg px-3 py-2 bg-white/70 font-semibold" aria-label="Валута">
+                <option value="BGN">лв (BGN)</option>
+                <option value="EUR">€ (EUR)</option>
+              </select>
+            </div>
+            <p class="text-xs text-[#563d87]">Въведете стойността, в която клиентът дължи сумата.</p>
+
+            <!-- Paid block (moved under amount) -->
+            <div class="mt-1">
+              <label class="text-sm font-semibold text-[#3b2b5a]">Платено</label>
+              <div class="mt-3 grid gap-3">
+                <div class="input-group">
+                  <div class="prefix bgn">лв</div>
+                  <input id="paidBGN" type="number" min="0" step="0.01" class="big-input" placeholder="0.00" aria-label="Платено в лв">
+                </div>
+                <div class="input-group">
+                  <div class="prefix eur">€</div>
+                  <input id="paidEUR" type="number" min="0" step="0.01" class="big-input" placeholder="0.00" aria-label="Платено в евро">
+                </div>
+                <p class="text-xs text-[#563d87]">Можете да въвеждате сума и в двете валути — приложението ще ги комбинира.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Error box -->
+        <div id="errorBox" class="mt-4 p-3 rounded-md error-box shadow-sm hidden fade-slide">
+          <p class="text-sm text-red-800 font-semibold">Недостатъчно платено — добавете повече средства или коригирайте сумата.</p>
+        </div>
+
+        <!-- Result card -->
+        <div id="resultCard" class="mt-4 p-4 rounded-xl shadow-deep bg-white/60 fade-slide transform opacity-0 scale-95 hidden">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-lg" style="background:var(--accent); color:white; display:flex; align-items:center; justify-content:center; font-family:Comfortaa, sans-serif; font-weight:700; font-size:18px;">€⇄лв</div>
+              <div>
+                <div class="text-sm text-[#3b2b5a]">Ресто</div>
+                <div id="changePrimary" class="text-2xl font-semibold text-[#280942] mt-1">0.00 лв</div>
+              </div>
+            </div>
+
+            <div class="text-right">
+              <div class="segment inline-flex rounded-lg border border-gray-200 overflow-hidden">
+                <button id="showBGN" class="px-3 py-2 bg-[color:var(--accent)] text-white text-sm font-semibold">В лв</button>
+                <button id="showEUR" class="px-3 py-2 bg-transparent text-sm font-semibold">В €</button>
+              </div>
+              <div class="text-xs text-gray-600 mt-2" id="changeSecondary">≈ 0.00 €</div>
+            </div>
+          </div>
+          <div class="mt-3 text-xs text-gray-500">Курс: 1 EUR = 1.95583 BGN</div>
+        </div>
+
+        <!-- Footer actions -->
+        <div class="mt-4 flex items-center justify-between gap-3">
+          <div class="text-sm text-gray-600">Rate: 1 EUR = 1.95583 BGN</div>
+          <div class="flex gap-2">
+            <button id="clearBtn" class="px-4 py-2 rounded-lg bg-white/80 text-sm font-semibold">Изчисти</button>
+            <button id="focusPayBtn" class="px-4 py-2 rounded-lg bg-[color:var(--accent)] text-white text-sm font-semibold">Плати/Преглед</button>
+          </div>
+        </div>
+        <div class="mt-2 text-xs text-gray-500">© Mira Gramatikova</div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const RATE = 1.95583;
+
+    // DOM
+    const amountEl = document.getElementById('amount');
+    const amountCurrencyEl = document.getElementById('amountCurrency');
+    const amountPrefix = document.getElementById('amountPrefix');
+    const paidBGNEl = document.getElementById('paidBGN');
+    const paidEUREl = document.getElementById('paidEUR');
+    const errorBox = document.getElementById('errorBox');
+    const resultCard = document.getElementById('resultCard');
+    const changePrimary = document.getElementById('changePrimary');
+    const changeSecondary = document.getElementById('changeSecondary');
+    const showBGN = document.getElementById('showBGN');
+    const showEUR = document.getElementById('showEUR');
+    const clearBtn = document.getElementById('clearBtn');
+    const focusPayBtn = document.getElementById('focusPayBtn');
+
+    let displayCurrency = 'BGN';
+
+    function toBGN(val, currency){
+      currency = currency || 'BGN';
+      const v = Number(val) || 0;
+      return currency === 'EUR' ? v * RATE : v;
+    }
+    function fromBGN(val, currency){
+      currency = currency || 'BGN';
+      const v = Number(val) || 0;
+      return currency === 'EUR' ? (v / RATE) : v;
+    }
+
+    function formatSimple(num, currency){
+      const options = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+      if(currency==='EUR') return new Intl.NumberFormat('bg-BG', {...options, style:'currency', currency:'EUR'}).format(num);
+      // For BGN we display with 'лв' suffix
+      return new Intl.NumberFormat('bg-BG', {...options}).format(num) + ' лв';
+    }
+
+    function compute(){
+      const amt = Number(amountEl.value) || 0;
+      const amtCurrency = amountCurrencyEl.value || 'BGN';
+      const needBGN = toBGN(amt, amtCurrency);
+
+      const paidBGN = Number(paidBGNEl.value) || 0;
+      const paidEUR = Number(paidEUREl.value) || 0;
+      const totalPaidBGN = paidBGN + toBGN(paidEUR, 'EUR');
+
+      const diff = +(totalPaidBGN - needBGN).toFixed(2);
+
+      if (diff < 0){
+        showError(true);
+        showResult(false);
+      } else {
+        showError(false);
+        showResult(true);
+        updateChange(diff);
+      }
+    }
+
+    function showError(yes){
+      if(yes){
+        errorBox.classList.remove('hidden');
+        errorBox.classList.add('block');
+      } else {
+        errorBox.classList.add('hidden');
+        errorBox.classList.remove('block');
+      }
+    }
+
+    function showResult(yes){
+      if(yes){
+        resultCard.classList.remove('hidden');
+        setTimeout(()=> {
+          resultCard.style.opacity = '1';
+          resultCard.style.transform = 'translateY(0) scale(1)';
+        }, 8);
+      } else {
+        resultCard.style.opacity = '0';
+        resultCard.style.transform = 'translateY(6px) scale(.98)';
+        setTimeout(()=> {
+          resultCard.classList.add('hidden');
+        }, 250);
+      }
+    }
+
+    function updateChange(changeBGN){
+      if(displayCurrency === 'BGN'){
+        changePrimary.textContent = formatSimple(changeBGN, 'BGN');
+        const equivEUR = +(changeBGN / RATE).toFixed(2);
+        changeSecondary.textContent = '≈ ' + formatSimple(equivEUR, 'EUR');
+      } else {
+        const changeEUR = +(changeBGN / RATE).toFixed(2);
+        changePrimary.textContent = formatSimple(changeEUR, 'EUR');
+        const equivBGN = +(changeEUR * RATE).toFixed(2);
+        changeSecondary.textContent = '≈ ' + formatSimple(equivBGN, 'BGN');
+      }
+    }
+
+    // Input listeners
+    [amountEl, amountCurrencyEl, paidBGNEl, paidEUREl].forEach(el => {
+      el.addEventListener('input', compute);
+      el.addEventListener('change', compute);
+    });
+
+    amountCurrencyEl.addEventListener('change', ()=> {
+      const val = amountCurrencyEl.value;
+      if(val === 'BGN'){
+        amountPrefix.classList.remove('eur');
+        amountPrefix.classList.add('bgn');
+        amountPrefix.textContent = 'лв';
+      } else {
+        amountPrefix.classList.remove('bgn');
+        amountPrefix.classList.add('eur');
+        amountPrefix.textContent = '€';
+      }
+      compute();
+    });
+
+    showBGN.addEventListener('click', () => {
+      displayCurrency = 'BGN';
+      showBGN.classList.add('bg-[color:var(--accent)]','text-white');
+      showEUR.classList.remove('bg-[color:var(--accent)]','text-white');
+      compute();
+    });
+    showEUR.addEventListener('click', () => {
+      displayCurrency = 'EUR';
+      showEUR.classList.add('bg-[color:var(--accent)]','text-white');
+      showBGN.classList.remove('bg-[color:var(--accent)]','text-white');
+      compute();
+    });
+
+    clearBtn.addEventListener('click', () => {
+      amountEl.value = '';
+      paidBGNEl.value = '';
+      paidEUREl.value = '';
+      showError(false);
+      showResult(false);
+    });
+
+    focusPayBtn.addEventListener('click', () => {
+      paidBGNEl.focus();
+    });
+
+    showBGN.classList.add('bg-[color:var(--accent)]','text-white');
+
+    // Build dynamic checkerboard background with alternating symbols (strict alternation)
+    (function buildBgSymbols(){
+      const container = document.getElementById('bgSymbols');
+      const cols = 6;
+      const rows = 12;
+      const sw = window.innerWidth;
+      const sh = window.innerHeight;
+      const cellW = Math.ceil(sw / cols);
+      const cellH = Math.ceil(sh / rows);
+      let toggle = true;
+      for(let r=0;r<rows;r++){
+        for(let c=0;c<cols;c++){
+          const span = document.createElement('span');
+          span.className = 'cell';
+          span.style.left = (c*cellW + Math.random()*40 - 20) + 'px';
+          span.style.top = (r*cellH + Math.random()*40 - 20) + 'px';
+          span.style.opacity = (0.03 + Math.random()*0.05).toString();
+          span.style.transform = `translate(${(Math.random()*40-20)}px, ${(Math.random()*30-15)}px) rotate(${Math.random()*20-10}deg) scale(${0.9+Math.random()*0.3})`;
+          span.textContent = toggle ? '€' : 'лв';
+          toggle = !toggle;
+          const dur = 9000 + Math.floor(Math.random()*9000);
+          const delay = Math.floor(Math.random()*2000);
+          span.style.transition = `transform ${dur}ms ease-in-out ${delay}ms, opacity ${dur/2}ms`;
+          (function animate(el, dur){
+            function floater(){
+              const dx = Math.random()*30-15;
+              const dy = Math.random()*20-10;
+              const rot = Math.random()*12-6;
+              const sc = 0.95 + Math.random()*0.2;
+              el.style.transform = `translate(${dx}px, ${dy}px) rotate(${rot}deg) scale(${sc})`;
+              setTimeout(floater, dur + Math.random()*2000);
+            }
+            setTimeout(floater, delay + Math.random()*800);
+          })(span, dur);
+          container.appendChild(span);
+        }
+        if (cols % 2 === 0) {
+          // keep alternating
+        } else {
+          toggle = !toggle;
+        }
+      }
+    })();
+
+    // Draw tile logo on canvas (accent tile with symbols)
+    (function drawCanvasLogo(){
+      const canvas = document.getElementById('tileLogo');
+      if(!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      const r = 18;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      canvas.style.width = (w/ dpr) + 'px';
+      canvas.style.height = (h/ dpr) + 'px';
+      ctx.scale(dpr, dpr);
+
+      // background rounded rect
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#6D28D9';
+      roundRect(ctx, 0, 0, w/dpr, h/dpr, r);
+      ctx.fill();
+
+      // main symbols
+      ctx.fillStyle = '#fff';
+      ctx.font = '600 16px Comfortaa, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('€ ⇄ лв', (w/dpr)/2, (h/dpr)/2 - 3);
+
+      // small label
+      ctx.font = '500 9px Montserrat, sans-serif';
+      ctx.fillText('DualPay', (w/dpr)/2, (h/dpr) - 14);
+
+      function roundRect(ctx,x,y,w,h,r){
+        ctx.beginPath();
+        ctx.moveTo(x+r,y);
+        ctx.arcTo(x+w,y,x+w,y+h,r);
+        ctx.arcTo(x+w,y+h,x,y+h,r);
+        ctx.arcTo(x,y+h,x,y,r);
+        ctx.arcTo(x,y,x+w,y,r);
+        ctx.closePath();
+      }
+
+      // favicon
+      try{
+        const link = document.createElement('link');
+        link.rel = 'icon';
+        link.href = canvas.toDataURL('image/png');
+        document.head.appendChild(link);
+      }catch(e){}
+    })();
+
+    // Create dynamic SVG manifest icon and register service worker from Blob
+    (function createManifestAndSW(){
+      const accent = '#6D28D9';
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512">
+          <rect width="100%" height="100%" rx="60" fill="${accent}"/>
+          <text x="50%" y="44%" text-anchor="middle" fill="#fff" font-family="Comfortaa, sans-serif" font-size="48" font-weight="700">€ ⇄ лв</text>
+          <text x="50%" y="76%" text-anchor="middle" fill="rgba(255,255,255,0.95)" font-family="Montserrat, sans-serif" font-size="40">DualPay</text>
+        </svg>
+      `.trim();
+      const svgBlob = new Blob([svg], {type: 'image/svg+xml'});
+      const svgUrl = URL.createObjectURL(svgBlob);
+
+      const manifest = {
+        name: "DualPay Calculator 2029Z18",
+        short_name: "DualPay",
+        description: "Калкулатор за ресто BGN ↔ EUR — 1 EUR = 1.95583 BGN",
+        start_url: ".",
+        display: "standalone",
+        background_color: "#f3e8ff",
+        theme_color: "#6D28D9",
+        icons: [
+          { src: svgUrl, sizes: "512x512", type: "image/svg+xml", purpose: "any maskable" }
+        ]
+      };
+      const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+      const manifestURL = URL.createObjectURL(manifestBlob);
+
+      const link = document.createElement('link');
+      link.rel = 'manifest';
+      link.href = manifestURL;
+      document.head.appendChild(link);
+
+      const appleLink = document.createElement('link');
+      appleLink.rel = 'apple-touch-icon';
+      appleLink.href = svgUrl;
+      document.head.appendChild(appleLink);
+
+      const swCode = `
+        const CACHE_NAME = 'dualpay-cache-v1';
+        const APP_URL = location.href.split('#')[0];
+        self.addEventListener('install', event => {
+          event.waitUntil(
+            caches.open(CACHE_NAME).then(cache => {
+              return cache.addAll([APP_URL]);
+            }).then(() => self.skipWaiting())
+          );
+        });
+
+        self.addEventListener('activate', event => {
+          event.waitUntil(self.clients.claim());
+        });
+
+        self.addEventListener('fetch', event => {
+          event.respondWith(
+            caches.match(event.request).then(cached => {
+              if(cached) return cached;
+              return fetch(event.request).then(resp => resp).catch(()=> caches.match(APP_URL));
+            })
+          );
+        });
+      `;
+      const swBlob = new Blob([swCode], {type: 'application/javascript'});
+      const swURL = URL.createObjectURL(swBlob);
+
+      if('serviceWorker' in navigator){
+        navigator.serviceWorker.register(swURL).catch(err => {
+          console.warn('SW failed to register:', err);
+        });
+      }
+    })();
+
+    // Initial compute
+    compute();
+  </script>
+</body>
+</html>
